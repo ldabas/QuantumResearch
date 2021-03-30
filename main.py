@@ -1,13 +1,18 @@
 import pennylane as qml
 from pennylane import numpy as np
 import sys
+import boto3
 
-s3 = ("arn:aws:s3:::amazon-braket-72aea0b4ede6", "/")
-remote_device = qml.device("braket.aws.qubit", device_arn="arn:aws:braket:::device/quantum-simulator/amazon/sv1", s3_destination_folder=s3, wires=1)
+
+#aws_account_id = boto3.client("sts").get_caller_identity()["ldabas-quantum"]
+my_bucket = f"amazon-braket-72aea0b4ede6" # the name of the bucket#
+my_prefix = "quantum-stuff/" # the name of the folder in the bucket
+s3_folder = (my_bucket, my_prefix)
+device_arn="arn:aws:braket:::device/qpu/ionq/ionQdevice"
+wires = 1
+remote_device = qml.device("braket.aws.qubit", device_arn = device_arn, s3_destination_folder=s3_folder, wires=wires)
 
 def simple_circuits_20(angle):
-
-
 
     @qml.qnode(remote_device)
     def my_first_fun(angle):
