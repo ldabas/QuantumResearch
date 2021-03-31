@@ -32,10 +32,6 @@ def simple_circuits_20(angle):
     return prob
 
 
-def print_hi(name):
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-
-
 if __name__ == '__main__':
     # Load and process input
     #angle_str = sys.stdin.read()
