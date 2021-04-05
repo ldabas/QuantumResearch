@@ -1,16 +1,11 @@
-import tensorflow as tf
-import tensorflow_quantum as tfq
-import pandas as pd
-import numpy as np
-import cirq
-import sympy
-import seaborn as sns
-import collections
 
-# visualization tools
-# matplotlib inline
+import pennylane as qml
+from pennylane import numpy as np
+from pennylane.templates import RandomLayers
+import tensorflow as tf
+import pandas as pd
+from tensorflow import keras
 import matplotlib.pyplot as plt
-from cirq.contrib.svg import SVGCircuit
 
 dfss = pd.read_excel('Dataset.xlsx', sheet_name='SS(Ave)')
 dfss['Datetime'] = pd.to_datetime(dfss['Date'])
@@ -50,43 +45,9 @@ from sklearn.model_selection import train_test_split
 # Split the data into training and testing sets
 x_train, y_train, x_test, y_test = train_test_split(features, labels, test_size = 0.20)
 
-def convert_to_circuit(x):
-    qubits = cirq.GridQubit.rect(1, 2)
-    circuit = cirq.Circuit()
-    for i, val in enumerate(x):
-        if val:
-            circuit.append(cirq.X(qubits[i]))
-    return circuit
 
-x_train_circ = [convert_to_circuit(x) for x in x_train]
-x_test_circ = [convert_to_circuit(x) for x in x_test]
-
-x_train_tfcirc = tfq.convert_to_tensor(x_train_circ)
-x_test_tfcirc = tfq.convert_to_tensor(x_test_circ)
-
-input_qubits = cirq.GridQubit.rect(2, 1)  # 2x1 grid.
-readout = cirq.GridQubit(-1, -1)   # a qubit at [-1,-1]
-model_circuit = cirq.Circuit()
-
-model_circuit.append(cirq.X(readout))
-model_circuit.append(cirq.H(readout))
-
-alpha1 = sympy.Symbol('a1')
-model_circuit.append(cirq.XX(input_qubits[0], readout)**alpha1)
-
-alpha2 = sympy.Symbol('a2')
-model_circuit.append(cirq.XX(input_qubits[1], readout)**alpha2)
-
-beta1 = sympy.Symbol('b1')
-model_circuit.append(cirq.ZZ(input_qubits[0], readout)**beta1)
-
-beta2 = sympy.Symbol('b2')
-model_circuit.append(cirq.ZZ(input_qubits[1], readout)**beta2)
-
-model_circuit.append(cirq.H(readout))
-model_readout = cirq.Z(readout)
-
-""" aws_account_id = boto3.client("sts").get_caller_identity()["ldabas-quantum"]
+"""
+aws_account_id = boto3.client("sts").get_caller_identity()["ldabas-quantum"]
 
 my_bucket = f"amazon-braket-72aea0b4ede6" # the name of the bucket#
 my_prefix = "quantum-stuff/" # the name of the folder in the bucket
