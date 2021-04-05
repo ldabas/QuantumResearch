@@ -1,9 +1,7 @@
-
 import tensorflow as tf
 import tensorflow_quantum as tfq
 import pandas as pd
 import numpy as np
-
 import cirq
 import sympy
 import seaborn as sns
