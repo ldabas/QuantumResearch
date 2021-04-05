@@ -1,10 +1,6 @@
 import pandas as pd
-import csv
 import numpy as np
 import matplotlib.pylab as plt
-from statsmodels.tsa.stattools import adfuller
-from pandas.plotting import autocorrelation_plot
-from statsmodels.tsa.stattools import acf, pacf
 
 dfss = pd.read_excel('Dataset.xlsx', sheet_name='SS(Ave)')
 dfss['Datetime'] = pd.to_datetime(dfss['Date'])
@@ -21,22 +17,41 @@ dfat['Datetime'] = pd.to_datetime(dfat['Date'])
 dfat = dfat.set_index('Datetime')
 dfat = dfat.drop(['YYYY-MM','Date'], axis=1)
 
-dfss_tn = dfss[['BOD', 'NH3-N', 'TN','PH']]
-dfat_tn=dfat[['MLSS','AT_Temp']]
+dfss_fin= dfss[['BOD', 'NH3-N', 'TN','PH']]
+dfat_fin=dfat[['MLSS','AT_Temp']]
+dfss_finMA = dfss_fin.rolling(5, min_periods=1).mean()
+dfat_finMA=dfat_fin.rolling(5, min_periods=1).mean()
+dfss_fin.fillna(dfss_finMA,inplace=True)
+dfat_fin.fillna(dfat_finMA,inplace=True)
+
+# TOTAL NITROGEN
 dffe_tn = dffe[['TN']]
-
 dffe_tn.columns = ['OUTPUT TN']
-
-dfss_tnMA = dfss_tn.rolling(5, min_periods=1).mean()
-dfat_tnMA=dfat_tn.rolling(5, min_periods=1).mean()
 dffe_tnMA=dffe_tn.rolling(5, min_periods=1).mean()
-
-dfss_tn.fillna(dfss_tnMA,inplace=True)
-dfat_tn.fillna(dfat_tnMA,inplace=True)
 dffe_tn.fillna(dffe_tnMA,inplace=True)
 
-tn_data = pd.concat([dfss_tn,dfat_tn,dffe_tn], axis=1)
+tn_data = pd.concat([dfss_fin,dfat_fin,dffe_tn], axis=1)
 tn_data = tn_data.dropna()
+
+# AMMONIA
+dffe_nh3 = dffe[['NH3-N']]
+dffe_nh3MA=dffe_nh3.rolling(5, min_periods=1).mean()
+dffe_nh3.fillna(dffe_nh3MA,inplace=True)
+dffe_nh3.columns = ['OUTPUT NH3']
+nh3_data = pd.concat([dfss_fin,dfat_fin,dffe_nh3], axis=1)
+
+nh3_data.drop(nh3_data.loc[nh3_data['OUTPUT NH3'] <0.5000001 ].index, inplace=True)
+nh3_data = nh3_data.dropna()
+
+# Biological Oxygen Demand
+dffe_bod = dffe[['BOD']]
+dffe_bod.columns = ['OUTPUT BOD']
+dffe_bodMA=dffe_bod.rolling(5, min_periods=1).mean()
+dffe_bod.fillna(dffe_bodMA,inplace=True)
+
+bod_data = pd.concat([dfss,dfat,dffe_bod], axis=1)
+
+bod_data.drop(bod_data.loc[bod_data['OUTPUT BOD'] < 5.00000001 ].index, inplace=True)
 
 def test_stationarity(timeseries):
     #Determing rolling statistics
@@ -121,5 +136,63 @@ ax4 = plt.subplot(414)
 ax4.plot(residual, label='Residuals')
 plt.legend(loc='best')
 ax4.set_ylim([-3, 5])
+plt.show()
+plt.tight_layout
+
+from statsmodels.tsa.seasonal import seasonal_decompose
+decomposition = seasonal_decompose(bod_data['OUTPUT BOD'], model='additive',period=30)
+
+trend = decomposition.trend
+seasonal = decomposition.seasonal
+residual = decomposition.resid
+
+ay1 = plt.subplot(411)
+ay1.plot(bod_data['OUTPUT BOD'], label='Original')
+plt.legend(loc='best')
+ay1.set_ylim([3, 14])
+
+ay2 = plt.subplot(412)
+ay2.plot(trend, label='Trend')
+plt.legend(loc='best')
+ay2.set_ylim([3, 14])
+
+ay3 = plt.subplot(413)
+ay3.plot(seasonal, label='Seasonality')
+plt.legend(loc='best')
+ay3.set_ylim([-3, 5])
+
+ay4 = plt.subplot(414)
+ay4.plot(residual, label='Residuals')
+plt.legend(loc='best')
+ay4.set_ylim([-3, 5])
+plt.show()
+plt.tight_layout
+
+from statsmodels.tsa.seasonal import seasonal_decompose
+decomposition = seasonal_decompose(nh3_data['OUTPUT NH3-N'], model='additive',period=30)
+
+trend = decomposition.trend
+seasonal = decomposition.seasonal
+residual = decomposition.resid
+
+az1 = plt.subplot(411)
+az1.plot(nh3_data['OUTPUT NH3-N'], label='Original')
+plt.legend(loc='best')
+az1.set_ylim([3, 14])
+
+az1 = plt.subplot(412)
+az1.plot(trend, label='Trend')
+plt.legend(loc='best')
+az1.set_ylim([3, 14])
+
+az1 = plt.subplot(413)
+az1.plot(seasonal, label='Seasonality')
+plt.legend(loc='best')
+az1.set_ylim([-3, 5])
+
+az1 = plt.subplot(414)
+az1.plot(residual, label='Residuals')
+plt.legend(loc='best')
+az1.set_ylim([-3, 5])
 plt.show()
 plt.tight_layout
