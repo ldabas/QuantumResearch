@@ -1,57 +1,31 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
+from IPython.display import display
 
-dfss = pd.read_excel('Dataset.xlsx', sheet_name='SS(Ave)')
-dfss['Datetime'] = pd.to_datetime(dfss['Date'])
-dfss = dfss.set_index('Datetime')
-dfss = dfss.drop(['YYYY-MM','Date'], axis=1)
+# Works if Dataset.xlsx is uploaded directly on filesys on left
+with pd.ExcelFile('./Dataset.xlsx') as reader:
+    # Train from data
+    sheet1 = pd.read_excel(reader, sheet_name='SS(Ave)')[['Date', 'BOD', 'NH3-N', 'TN', 'PH']]
+    sheet3 = pd.read_excel(reader, sheet_name='AT(Ave)')[['Date', 'MLSS', 'AT_Temp']]
+    # test data
+    sheet2 = pd.read_excel(reader, sheet_name='FE')[['Date', 'BOD', 'NH3-N', 'TN']]
 
-dffe = pd.read_excel('Dataset.xlsx', sheet_name='FE')
-dffe['Datetime'] = pd.to_datetime(dffe['Date'])
-dffe = dffe.set_index('Datetime')
-dffe = dffe.drop(['YYYY-MM','Date'], axis=1)
+# Make Date the index
+sheet1.set_index('Date', inplace=True)
+sheet2.set_index('Date', inplace=True)
+sheet3.set_index('Date', inplace=True)
 
-dfat = pd.read_excel('Dataset.xlsx', sheet_name='AT(Ave)')
-dfat['Datetime'] = pd.to_datetime(dfat['Date'])
-dfat = dfat.set_index('Datetime')
-dfat = dfat.drop(['YYYY-MM','Date'], axis=1)
+df_inputs = pd.merge(sheet1, sheet3, on='Date', how='outer')
+df_outputs = sheet2
 
-dfss_fin= dfss[['BOD', 'NH3-N', 'TN','PH']]
-dfat_fin=dfat[['MLSS','AT_Temp']]
-dfss_finMA = dfss_fin.rolling(5, min_periods=1).mean()
-dfat_finMA=dfat_fin.rolling(5, min_periods=1).mean()
-dfss_fin.fillna(dfss_finMA,inplace=True)
-dfat_fin.fillna(dfat_finMA,inplace=True)
+df_inputs
 
-# TOTAL NITROGEN
-dffe_tn = dffe[['TN']]
-dffe_tn.columns = ['OUTPUT TN']
-dffe_tnMA=dffe_tn.rolling(5, min_periods=1).mean()
-dffe_tn.fillna(dffe_tnMA,inplace=True)
+from fancyimpute import KNN, NuclearNormMinimization, SoftImpute, BiScaler, IterativeImputer
 
-tn_data = pd.concat([dfss_fin,dfat_fin,dffe_tn], axis=1)
-tn_data = tn_data.dropna()
-
-# AMMONIA
-dffe_nh3 = dffe[['NH3-N']]
-dffe_nh3MA=dffe_nh3.rolling(5, min_periods=1).mean()
-dffe_nh3.fillna(dffe_nh3MA,inplace=True)
-dffe_nh3.columns = ['OUTPUT NH3']
-nh3_data = pd.concat([dfss_fin,dfat_fin,dffe_nh3], axis=1)
-
-nh3_data.drop(nh3_data.loc[nh3_data['OUTPUT NH3'] <0.5000001 ].index, inplace=True)
-nh3_data = nh3_data.dropna()
-
-# Biological Oxygen Demand
-dffe_bod = dffe[['BOD']]
-dffe_bod.columns = ['OUTPUT BOD']
-dffe_bodMA=dffe_bod.rolling(5, min_periods=1).mean()
-dffe_bod.fillna(dffe_bodMA,inplace=True)
-
-bod_data = pd.concat([dfss,dfat,dffe_bod], axis=1)
-
-bod_data.drop(bod_data.loc[bod_data['OUTPUT BOD'] < 5.00000001 ].index, inplace=True)
+df_inputs = pd.DataFrame(data=IterativeImputer().fit_transform(df_inputs), columns=df_inputs.columns, index=df_inputs.index)
+df_outputs = pd.DataFrame(data=IterativeImputer().fit_transform(df_outputs), columns=df_outputs.columns, index=df_outputs.index)
+df_inputs.describe()
 
 def test_stationarity(timeseries):
     #Determing rolling statistics
@@ -63,23 +37,26 @@ def test_stationarity(timeseries):
     mean = plt.plot(rolmean, color='red', label='Rolling Mean')
     std = plt.plot(rolstd, color='black', label = 'Rolling Std')
     plt.legend(loc='best')
-    plt.title('Rolling Mean & Standard Deviation')
+    plt.title('Rolling Mean & Standard Deviation for Ammonia')
     plt.show()
-test_stationarity(tn_data['OUTPUT TN'])
+
+#test_stationarity(df_outputs['TN'])
+#test_stationarity(df_outputs['BOD'])
+test_stationarity(df_outputs['NH3-N'])
 
 def difference(dataset, interval=1):
     index = list(dataset.index)
     diff = list()
     for i in range(interval, len(dataset)):
-        value = dataset["OUTPUT TN"][i] - dataset["OUTPUT TN"][i - interval]
+        value = dataset["TN"][i] - dataset["TN"][i - interval]
         diff.append(value)
     return (diff)
 
-diff = difference(tn_data)
+diff = difference(df_outputs)
 plt.plot(diff)
 plt.show()
 
-tn_log = np.log(tn_data["OUTPUT TN"])
+tn_log = np.log(df_outputs['TN'])
 plt.title('Log of the data')
 plt.plot(tn_log)
 plt.show()
@@ -110,16 +87,18 @@ plt.show()
 tn_log_diff.dropna(inplace=True)
 test_stationarity(tn_log_diff)
 
+fig = plt.figure()
 from statsmodels.tsa.seasonal import seasonal_decompose
-decomposition = seasonal_decompose(tn_data['OUTPUT TN'], model='additive',period=30)
+decomposition = seasonal_decompose(df_outputs['TN'], model='additive',period=30)
 
 trend = decomposition.trend
 seasonal = decomposition.seasonal
 residual = decomposition.resid
 
 ax1 = plt.subplot(411)
-ax1.plot(tn_data['OUTPUT TN'], label='Original')
+ax1.plot(df_outputs['TN'], label='Original')
 plt.legend(loc='best')
+plt.title('Time Series Forecasting: Total Nitrogen')
 ax1.set_ylim([3, 14])
 
 ax2 = plt.subplot(412)
@@ -137,18 +116,20 @@ ax4.plot(residual, label='Residuals')
 plt.legend(loc='best')
 ax4.set_ylim([-3, 5])
 plt.show()
-plt.tight_layout
+display(fig)
+
 
 from statsmodels.tsa.seasonal import seasonal_decompose
-decomposition = seasonal_decompose(bod_data['OUTPUT BOD'], model='additive',period=30)
+decomposition = seasonal_decompose(df_outputs['BOD'], model='additive',period=30)
 
 trend = decomposition.trend
 seasonal = decomposition.seasonal
 residual = decomposition.resid
 
 ay1 = plt.subplot(411)
-ay1.plot(bod_data['OUTPUT BOD'], label='Original')
+ay1.plot(df_outputs['BOD'], label='Original')
 plt.legend(loc='best')
+plt.title('Time Series Forecasting: Biological Oxygen Demand')
 ay1.set_ylim([3, 14])
 
 ay2 = plt.subplot(412)
@@ -166,24 +147,25 @@ ay4.plot(residual, label='Residuals')
 plt.legend(loc='best')
 ay4.set_ylim([-3, 5])
 plt.show()
-plt.tight_layout
+
 
 from statsmodels.tsa.seasonal import seasonal_decompose
-decomposition = seasonal_decompose(nh3_data['OUTPUT NH3-N'], model='additive',period=30)
+decomposition = seasonal_decompose(df_outputs['NH3-N'], model='additive',period=30)
 
 trend = decomposition.trend
 seasonal = decomposition.seasonal
 residual = decomposition.resid
 
 az1 = plt.subplot(411)
-az1.plot(nh3_data['OUTPUT NH3-N'], label='Original')
+az1.plot(df_outputs['NH3-N'], label='Original')
+plt.title('Time Series Forecasting: Ammonia')
 plt.legend(loc='best')
-az1.set_ylim([3, 14])
+az1.set_ylim([0, 2])
 
 az1 = plt.subplot(412)
 az1.plot(trend, label='Trend')
 plt.legend(loc='best')
-az1.set_ylim([3, 14])
+az1.set_ylim([0, 3])
 
 az1 = plt.subplot(413)
 az1.plot(seasonal, label='Seasonality')
@@ -195,4 +177,3 @@ az1.plot(residual, label='Residuals')
 plt.legend(loc='best')
 az1.set_ylim([-3, 5])
 plt.show()
-plt.tight_layout
